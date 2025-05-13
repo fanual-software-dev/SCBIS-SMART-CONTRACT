@@ -1,0 +1,20 @@
+{
+  "name": "scbis-contract",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Fanual Asfaw",
+  "license": "ISC",
+  "description": "This is a smart contract for the SCBIS project. It is designed to manage the issuance and transfer of digital assets on the blockchain. The contract includes functions for minting, burning, and transferring tokens, as well as for managing user balances and allowances. The contract is written in Solidity and is compatible with the Ethereum blockchain.",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^2.0.0",
+    "hardhat": "^2.24.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "ethers": "^5.7.2"
+  }
+}
