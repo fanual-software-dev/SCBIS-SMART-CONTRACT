@@ -24,8 +24,20 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
+    customChains: [
+      {
+        network: "amoy",
+        chainId: 80002,
+        urls: {
+          apiURL: "https://api-amoy.polygonscan.com/api",
+          browserURL: "https://amoy.polygonscan.com",
+        },
+      },
+    ],
     apiKey: process.env.POLYGONSCAN_API_KEY || "",
   },
 };
+
+
 
 export default config;

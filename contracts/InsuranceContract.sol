@@ -95,55 +95,63 @@
 
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.19;
 
 contract InsuranceContract {
     struct Claim {
         string claimId;
-        string insuredName; // Name of the insured person
-        string driverName; // Name of the driver (if applicable)
-        string vehicleNumber; // Vehicle number (if applicable)
-        uint256 amountClaimed; // Amount claimed
-        uint256 amountApproved; // Amount approved for the claim
-        string description; // Optional description for the claim
-        // string status; // e.g., "Pending", "Approved", "Rejected"
-        string proforma; // proforma invoice or document related to the claim
-        string medicalRecords; // Medical records if applicable
-        uint256 claimDate; // Date of the claim
-        string accidentType; // Type of accident (e.g., Personal Injury, Property Damage)
+        string insuredName;
+        string driverName;
+        string vehicleNumber;
+        uint256 amountClaimed;
+        uint256 amountApproved;
+        string description;
+        string proforma;
+        string medicalRecords;
+        uint256 claimDate;
+        uint256 approvalDate;
+        bool isApproved;
+        string accidentType;
     }
 
     struct Policy {
         string policyId;
         string policyType;
         uint256 premiumAmount;
-        uint256 coverageAmount;
+        string coverageArea;
         uint256 policyStartDate;
         uint256 policyEndDate;
         bool isActive;
         Claim[] claims;
     }
 
-    struct Insurance {
-        string userId;
-        Policy[] policies;
+    struct PolicySummary {
+        string policyId;
+        string policyType;
+        uint256 premiumAmount;
+        string coverageArea;
+        uint256 policyStartDate;
+        uint256 policyEndDate;
+        bool isActive;
+        uint256 claimsCount;
     }
 
     address public admin;
 
-    mapping(string => Insurance) private insurances;         // userId => Insurance
-    mapping(string => address) private policyOwners;         // userId => wallet address
+    mapping(address => Policy[]) private userPolicies;              // wallet => list of policies
+    mapping(string => address) private policyToOwner;              // policyId => wallet address
 
-    event PolicyIssued(string indexed userId, string indexed policyId, address indexed owner);
-    event ClaimAdded(string indexed userId, string indexed policyId, string indexed claimId, uint256 amount);
+    event PolicyIssued(address indexed user, string indexed policyId);
+    event ClaimAdded(address indexed user, string indexed policyId, string indexed claimId, uint256 amountClaimed);
+    event ClaimApproved(address indexed user, string indexed policyId, string indexed claimId, uint256 amountApproved);
 
     modifier onlyAdmin() {
         require(msg.sender == admin, "Only admin can perform this action");
         _;
     }
 
-    modifier onlyPolicyHolder(string memory _userId) {
-        require(policyOwners[_userId] == msg.sender, "Not the policy owner");
+    modifier onlyPolicyHolder(string memory _policyId) {
+        require(policyToOwner[_policyId] == msg.sender, "You do not own this policy");
         _;
     }
 
@@ -151,126 +159,145 @@ contract InsuranceContract {
         admin = msg.sender;
     }
 
-    // Issue a policy by manually provided policyId
+    // Issue a new policy
     function issuePolicy(
-        string memory _userId,
         string memory _policyId,
         string memory _policyType,
         uint256 _premiumAmount,
-        uint256 _coverageAmount,
-        uint256 _durationInDays,
-        address _ownerAddress
-    ) public onlyAdmin {
-        Insurance storage insurance = insurances[_userId];
+        string memory _coverageArea,
+        uint256 _durationInDays
+    ) public {
+        Policy[] storage policies = userPolicies[msg.sender];
 
-        if (bytes(insurance.userId).length == 0) {
-            insurance.userId = _userId;
-        }
-
-        // Prevent duplicate policyId for this user
-        for (uint256 i = 0; i < insurance.policies.length; i++) {
+        for (uint256 i = 0; i < policies.length; i++) {
             require(
-                keccak256(bytes(insurance.policies[i].policyId)) != keccak256(bytes(_policyId)),
+                keccak256(bytes(policies[i].policyId)) != keccak256(bytes(_policyId)),
                 "Policy ID already exists"
             );
         }
 
-        Policy memory newPolicy = Policy({
-            policyId: _policyId,
-            policyType: _policyType,
-            premiumAmount: _premiumAmount,
-            coverageAmount: _coverageAmount,
-            policyStartDate: block.timestamp,
-            policyEndDate: block.timestamp + (_durationInDays * 1 days),
-            isActive: true,
-            claims: new Claim 
-        });
+        Policy storage newPolicy = userPolicies[msg.sender].push(); // Allocate new empty policy in storage
 
-        insurance.policies.push(newPolicy);
-        policyOwners[_userId] = _ownerAddress;
+        newPolicy.policyId = _policyId;
+        newPolicy.policyType = _policyType;
+        newPolicy.premiumAmount = _premiumAmount;
+        newPolicy.coverageArea = _coverageArea;
+        newPolicy.policyStartDate = block.timestamp;
+        newPolicy.policyEndDate = block.timestamp + (_durationInDays * 1 days);
+        newPolicy.isActive = true;
 
-        emit PolicyIssued(_userId, _policyId, _ownerAddress);
+        policyToOwner[_policyId] = msg.sender;
+
+        emit PolicyIssued(msg.sender, _policyId);
     }
+
 
     // Add a claim to a specific policy
     function addClaimToPolicy(
-        string memory _userId,
         string memory _policyId,
         string memory _claimId,
-        uint256 _amount
-    ) public onlyPolicyHolder(_userId) {
-        Insurance storage insurance = insurances[_userId];
-        bool found = false;
+        uint256 _amountClaimed,
+        string memory _insuredName,
+        string memory _driverName,
+        string memory _description,
+        string memory _vehicleNumber,
+        string memory _proforma,
+        string memory _medicalRecords,
+        string memory _accidentType
+    ) public onlyPolicyHolder(_policyId) {
+        Policy[] storage policies = userPolicies[msg.sender];
+        bool added = false;
 
-        for (uint256 i = 0; i < insurance.policies.length; i++) {
-            if (keccak256(bytes(insurance.policies[i].policyId)) == keccak256(bytes(_policyId))) {
-                require(insurance.policies[i].isActive, "Policy not active");
-                require(_amount <= insurance.policies[i].coverageAmount, "Exceeds coverage");
+        for (uint i = 0; i < policies.length; i++) {
+            if (keccak256(bytes(policies[i].policyId)) == keccak256(bytes(_policyId))) {
+                require(policies[i].isActive, "Policy not active");
 
-                // Prevent duplicate claimId
-                for (uint256 j = 0; j < insurance.policies[i].claims.length; j++) {
+                for (uint j = 0; j < policies[i].claims.length; j++) {
                     require(
-                        keccak256(bytes(insurance.policies[i].claims[j].claimId)) != keccak256(bytes(_claimId)),
+                        keccak256(bytes(policies[i].claims[j].claimId)) != keccak256(bytes(_claimId)),
                         "Claim ID already exists"
                     );
                 }
 
-                insurance.policies[i].claims.push(
+                policies[i].claims.push(
                     Claim({
                         claimId: _claimId,
-                        amount: _amount,
-                        date: block.timestamp
+                        amountClaimed: _amountClaimed,
+                        amountApproved: 0,
+                        claimDate: block.timestamp,
+                        approvalDate: 0,
+                        insuredName: _insuredName,
+                        driverName: _driverName,
+                        vehicleNumber: _vehicleNumber,
+                        description: _description,
+                        proforma: _proforma,
+                        medicalRecords: _medicalRecords,
+                        isApproved: false,
+                        accidentType: _accidentType
                     })
                 );
 
-                emit ClaimAdded(_userId, _policyId, _claimId, _amount);
-                found = true;
+                emit ClaimAdded(msg.sender, _policyId, _claimId, _amountClaimed);
+                added = true;
                 break;
             }
         }
 
-        require(found, "Policy not found");
+        require(added, "Policy not found");
     }
 
-    // Get all policies for a user
-    function getAllPolicies(string memory _userId)
-        public
-        view
-        returns (Policy[] memory)
-    {
-        return insurances[_userId].policies;
-    }
+    // Admin approves a claim using policyId (without needing user address)
+    function approveClaimById(
+        string memory _policyId,
+        string memory _claimId,
+        uint256 _amountApproved
+    ) public onlyAdmin {
+        address user = policyToOwner[_policyId];
+        require(user != address(0), "Policy not found");
 
-    // Get a specific policy
-    function getPolicy(string memory _userId, string memory _policyId)
-        public
-        view
-        returns (Policy memory)
-    {
-        Policy[] storage policies = insurances[_userId].policies;
+        Policy[] storage policies = userPolicies[user];
+        bool found = false;
 
-        for (uint256 i = 0; i < policies.length; i++) {
+        for (uint i = 0; i < policies.length; i++) {
             if (keccak256(bytes(policies[i].policyId)) == keccak256(bytes(_policyId))) {
-                return policies[i];
+                for (uint j = 0; j < policies[i].claims.length; j++) {
+                    if (keccak256(bytes(policies[i].claims[j].claimId)) == keccak256(bytes(_claimId))) {
+                        require(!policies[i].claims[j].isApproved, "Already approved");
+                        require(_amountApproved <= policies[i].claims[j].amountClaimed, "Too much approved");
+
+                        policies[i].claims[j].amountApproved = _amountApproved;
+                        policies[i].claims[j].isApproved = true;
+                        policies[i].claims[j].approvalDate = block.timestamp;
+
+                        emit ClaimApproved(user, _policyId, _claimId, _amountApproved);
+                        found = true;
+                        break;
+                    }
+                }
             }
         }
 
-        revert("Policy not found");
+        require(found, "Claim not found");
     }
 
-    // Get a specific claim
-    function getClaimById(string memory _userId, string memory _policyId, string memory _claimId)
-        public
-        view
-        returns (Claim memory)
-    {
-        Policy[] storage policies = insurances[_userId].policies;
+    // Get all policies for the connected wallet
+    function getMyPolicies() public view returns (Policy[] memory) {
+        require(userPolicies[msg.sender].length > 0, "No policies found for this user");
+        return userPolicies[msg.sender];
+    }
 
-        for (uint256 i = 0; i < policies.length; i++) {
+    // Get a specific claim for the caller
+    function getClaim(
+        string memory _policyId,
+        string memory _claimId
+    ) public view onlyPolicyHolder(_policyId) returns (Claim memory) {
+        Policy[] storage policies = userPolicies[msg.sender];
+
+        for (uint i = 0; i < policies.length; i++) {
             if (keccak256(bytes(policies[i].policyId)) == keccak256(bytes(_policyId))) {
                 Claim[] storage claims = policies[i].claims;
 
-                for (uint256 j = 0; j < claims.length; j++) {
+                for (uint j = 0; j < claims.length; j++) {
                     if (keccak256(bytes(claims[j].claimId)) == keccak256(bytes(_claimId))) {
                         return claims[j];
                     }
@@ -281,14 +308,14 @@ contract InsuranceContract {
         revert("Claim not found");
     }
 
-    // Deactivate a policy (admin only)
-    function deactivatePolicy(string memory _userId, string memory _policyId)
-        public
-        onlyAdmin
-    {
-        Policy[] storage policies = insurances[_userId].policies;
+    // Admin deactivates a policy
+    function deactivatePolicy(string memory _policyId) public onlyAdmin {
+        address user = policyToOwner[_policyId];
+        require(user != address(0), "Policy not found");
 
-        for (uint256 i = 0; i < policies.length; i++) {
+        Policy[] storage policies = userPolicies[user];
+
+        for (uint i = 0; i < policies.length; i++) {
             if (keccak256(bytes(policies[i].policyId)) == keccak256(bytes(_policyId))) {
                 policies[i].isActive = false;
                 return;
@@ -297,15 +324,4 @@ contract InsuranceContract {
 
         revert("Policy not found");
     }
-
-    // Get the wallet address of the policy owner
-    function getPolicyOwner(string memory _userId)
-        public
-        view
-        returns (address)
-    {
-        return policyOwners[_userId];
-    }
 }
-
-
