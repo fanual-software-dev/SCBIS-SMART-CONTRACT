@@ -19,13 +19,13 @@ async function main() {
   );
 
   console.log("🧑‍⚖️ Admin address:", admin.address);
-  console.log("👤 User address :", user.address);
+  // console.log("👤 User address :", user.address);
 
   // ===== Issue a policy to the user =====
   console.log("\n📤 Issuing policy for user...");
 
   const issueTx = await contract.issuePolicyByAdmin(
-    user.address,
+    "0x573C1292B1B6891c2260B22Ceb01228b4De2d2fB",
     "POL123",
     "Vehicle",
     1000,
@@ -44,7 +44,7 @@ async function main() {
 
   // ===== Admin retrieves user's policies =====
   console.log("\n🔎 Admin reading user's policies...");
-  const adminPolicies = await contract.getUserPolicies(user.address);
+  const adminPolicies = await contract.getUserPolicies("0x573C1292B1B6891c2260B22Ceb01228b4De2d2fB");
   adminPolicies.forEach((policy: any, index: number) => {
     console.log(`\n📘 [Admin] Policy #${index + 1}`);
     console.log(`ID          : ${policy.policyId}`);
@@ -58,21 +58,21 @@ async function main() {
   });
 
   // ===== Connect as user and get their own policy =====
-  const contractAsUser = contract.connect(user);
+  // const contractAsUser = contract.connect(user);
 
-  console.log("\n🙋 User reading their own policies...");
-  const userPolicies = await contractAsUser.getMyPolicies();
-  userPolicies.forEach((policy: any, index: number) => {
-    console.log(`\n📗 [User] Policy #${index + 1}`);
-    console.log(`ID          : ${policy.policyId}`);
-    console.log(`Type        : ${policy.policyType}`);
-    console.log(`Premium     : ${(policy.premiumAmount)}`);
-    console.log(`Coverage    : ${policy.coverageArea}`);
-    console.log(`Start Date  : ${formatDate(policy.policyStartDate)}`);
-    console.log(`End Date    : ${formatDate(policy.policyEndDate)}`);
-    console.log(`Active      : ${policy.isActive}`);
-    console.log(`Claims      : ${policy.claims.length}`);
-  });
+  // console.log("\n🙋 User reading their own policies...");
+  // const userPolicies = await contractAsUser.getMyPolicies();
+  // userPolicies.forEach((policy: any, index: number) => {
+  //   console.log(`\n📗 [User] Policy #${index + 1}`);
+  //   console.log(`ID          : ${policy.policyId}`);
+  //   console.log(`Type        : ${policy.policyType}`);
+  //   console.log(`Premium     : ${(policy.premiumAmount)}`);
+  //   console.log(`Coverage    : ${policy.coverageArea}`);
+  //   console.log(`Start Date  : ${formatDate(policy.policyStartDate)}`);
+  //   console.log(`End Date    : ${formatDate(policy.policyEndDate)}`);
+  //   console.log(`Active      : ${policy.isActive}`);
+  //   console.log(`Claims      : ${policy.claims.length}`);
+  // });
 
   console.log("\n✅ Done.");
 }
